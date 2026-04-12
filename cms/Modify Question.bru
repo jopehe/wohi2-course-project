@@ -1,0 +1,18 @@
+meta {
+  name: Modify Question
+  type: http
+  seq: 1
+}
+
+put {
+  url: {{baseUrl}}/1
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "question": "Hellow world!",
+    "answer": "Hello to you!"
+  }
+}
