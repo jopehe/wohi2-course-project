@@ -1,95 +1,151 @@
 const express = require("express");
 const router = express.Router();
+const prisma = require("../lib/prisma");
 
-const questions = require("../data/quiz");
+function formatQuiz(quiz) {
+  return {
+    ...quiz,
+    date: quiz.date.toISOString().split("T")[0],
+    keywords: quiz.keywords.map((k) => k.name),
+  };
+}
 
-// GET /quiz
-// List all quizts
-router.get("/questions", (req, res) => {
+// GET
+// /questions
+router.get("/", async (req, res) => {
   const { keyword } = req.query;
 
-  if (!keyword) {
-    return res.json(questions);
-  }
+  const where = keyword ? { keywords: { some: { name: keyword } } } : {};
 
-  const filteredPosts = questions.filter((quiz) =>
-    quiz.keywords.includes(keyword.toLowerCase()),
-  );
+  const questions = await prisma.question.findMany({
+    where,
+    include: { keywords: true },
+    orderBy: { id: "asc" },
+  });
 
-  res.json(filteredPosts);
+  res.json(questions.map(formatQuiz));
 });
 
-//Get specific question
-router.get("/questions/:qId", (req, res) => {
-  const quizId = Number(req.params.qId);
+// GET
+// /questions/:id
+router.get("/:qId", async (req, res) => {
+  const id = Number(req.params.qId);
 
-  const quiz = questions.find((p) => p.id === quizId);
-
-  if (!quiz) {
-    return res.status(404).json({ message: "Quiz not found" });
+  if (isNaN(id)) {
+    return res.status(400).json({ message: "Invalid ID" });
   }
 
-  res.json(quiz);
+  const question = await prisma.question.findUnique({
+    where: { id },
+    include: { keywords: true },
+  });
+
+  if (!question) {
+    return res.status(404).json({ message: "Question not found" });
+  }
+
+  res.json(formatQuiz(question));
 });
 
-// Create a new quiz
-router.post("/questions", (req, res) => {
-  const { question, answer } = req.body;
+// POST
+// /questions
+router.post("/", async (req, res) => {
+  const { question, answer, keywords } = req.body;
 
   if (!question || !answer) {
     return res.status(400).json({
       message: "question and answer are required",
     });
   }
-  const maxId = Math.max(...questions.map((p) => p.id), 0);
 
-  const newQuiz = {
-    id: questions.length ? maxId + 1 : 1,
-    question,
-    answer,
-  };
-  questions.push(newQuiz);
-  res.status(201).json(newQuiz);
+  const keywordsArray = Array.isArray(keywords) ? keywords : [];
+
+  const newQuestion = await prisma.question.create({
+    data: {
+      question,
+      answer,
+      date: new Date(),
+      keywords: {
+        connectOrCreate: keywordsArray.map((kw) => ({
+          where: { name: kw },
+          create: { name: kw },
+        })),
+      },
+    },
+    include: { keywords: true },
+  });
+
+  res.status(201).json(formatQuiz(newQuestion));
 });
 
-// Edit a quiz !?
-router.put("/questions/:qId", (req, res) => {
-  const quizId = Number(req.params.qId);
-  const { question, answer } = req.body;
+// PUT
+// /questions/:id
+router.put("/:qId", async (req, res) => {
+  const id = Number(req.params.qId);
+  const { question, answer, keywords } = req.body;
 
-  const quiz = questions.find((q) => q.id === quizId);
+  if (isNaN(id)) {
+    return res.status(400).json({ message: "Invalid ID" });
+  }
 
-  if (!quiz) {
-    return res.status(404).json({ message: "Quiz not found" });
+  const existing = await prisma.question.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    return res.status(404).json({ message: "Question not found" });
   }
 
   if (!question || !answer) {
-    return res.json({
+    return res.status(400).json({
       message: "question and answer are required",
     });
   }
 
-  quiz.question = question;
-  quiz.answer = answer;
+  const keywordsArray = Array.isArray(keywords) ? keywords : [];
 
-  res.json(quiz);
+  const updated = await prisma.question.update({
+    where: { id },
+    data: {
+      question,
+      answer,
+      keywords: {
+        set: [],
+        connectOrCreate: keywordsArray.map((kw) => ({
+          where: { name: kw },
+          create: { name: kw },
+        })),
+      },
+    },
+    include: { keywords: true },
+  });
+
+  res.json(formatQuiz(updated));
 });
 
-// Delete a quiz
-router.delete("/questions/:qId", (req, res) => {
-  const quizId = Number(req.params.qId);
+// DELETE
+// /questions/:id
+router.delete("/:qId", async (req, res) => {
+  const id = Number(req.params.qId);
 
-  const quizIndex = questions.findIndex((p) => p.id === quizId);
-
-  if (quizIndex === -1) {
-    return res.status(404).json({ message: "Quiz not found" });
+  if (isNaN(id)) {
+    return res.status(400).json({ message: "Invalid ID" });
   }
 
-  const deletedQuiz = questions.splice(quizIndex, 1);
+  const existing = await prisma.question.findUnique({
+    where: { id },
+    include: { keywords: true },
+  });
+
+  if (!existing) {
+    return res.status(404).json({ message: "Question not found" });
+  }
+
+  await prisma.question.delete({ where: { id } });
 
   res.json({
-    message: "Quiz deleted successfully",
-    post: deletedQuiz, //[0]
+    message: "Question deleted successfully",
+    question: formatQuiz(existing),
   });
 });
 
