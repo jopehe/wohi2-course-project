@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const prisma = require("../lib/prisma");
+const authenticate = require("../middleware/auth");
+const isOwner = require("../middleware/isOwner");
 
 function formatQuiz(quiz) {
   return {
@@ -9,6 +11,8 @@ function formatQuiz(quiz) {
     keywords: quiz.keywords.map((k) => k.name),
   };
 }
+
+router.use(authenticate);
 
 // GET
 // /questions
@@ -65,6 +69,7 @@ router.post("/", async (req, res) => {
       question,
       answer,
       date: new Date(),
+      userId: req.user.userId,
       keywords: {
         connectOrCreate: keywordsArray.map((kw) => ({
           where: { name: kw },
@@ -80,7 +85,7 @@ router.post("/", async (req, res) => {
 
 // PUT
 // /questions/:id
-router.put("/:qId", async (req, res) => {
+router.put("/:qId", isOwner, async (req, res) => {
   const id = Number(req.params.qId);
   const { question, answer, keywords } = req.body;
 
@@ -125,7 +130,7 @@ router.put("/:qId", async (req, res) => {
 
 // DELETE
 // /questions/:id
-router.delete("/:qId", async (req, res) => {
+router.delete("/:qId", isOwner, async (req, res) => {
   const id = Number(req.params.qId);
 
   if (isNaN(id)) {

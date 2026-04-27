@@ -5,7 +5,7 @@ meta {
 }
 
 put {
-  url: {{baseUrl}}/1
+  url: {{baseUrl}}/
   body: json
   auth: none
 }
@@ -13,6 +13,7 @@ put {
 body:json {
   {
     "question": "Hellow world!",
-    "answer": "Hello to you!"
+    "answer": "Hello to you!",
+    "keywords": ["hello", "cool"]
   }
 }
