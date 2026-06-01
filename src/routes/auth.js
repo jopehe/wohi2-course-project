@@ -16,30 +16,35 @@ const asyncHandler = (fn) => (req, res, next) =>
 
 const SECRET = process.env.JWT_SECRET;
 
-router.post("/register", async (req, res) => {
-  const { email, password, name } = req.body;
+router.post(
+  "/register",
+  asyncHandler(async (req, res) => {
+    const { email, password, name } = req.body;
 
-  if (!email || !password || !name) {
-    throw new ValidationError("email, password and name are required");
-  }
+    if (!email || !password || !name) {
+      throw new ValidationError("email, password and name are required");
+    }
+    console.log("Email, username and password ok...");
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    throw new ConflictError("Email already registered");
-  }
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new ConflictError("Email already registered");
+    }
+    console.log("email ok....");
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: { email, password: hashedPassword, name },
+    });
+    console.log("User created....");
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: { email, password: hashedPassword, name },
-  });
-
-  //Token
-  const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: "1h" });
-  res.status(201).json({
-    message: "User registered successfully",
-    token,
-  });
-});
+    //Token
+    const token = jwt.sign({ userId: user.id }, SECRET, { expiresIn: "1h" });
+    res.status(201).json({
+      message: "User registered successfully",
+      token,
+    });
+  }),
+);
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -47,7 +52,7 @@ router.post("/login", async (req, res) => {
   if (!email || !password) {
     throw new ValidationError("email and password are required");
   }
-  //console.log("Email and password ok...");
+  console.log("Email and password ok...");
   const user = await prisma.user.findUnique({ where: { email } });
 
   //User exist
